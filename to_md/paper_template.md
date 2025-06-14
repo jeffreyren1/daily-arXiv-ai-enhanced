@@ -7,7 +7,8 @@ TL;DR: {tldr}
 
 
 <details>
-  <summary>Details</summary>
+<summary>Details</summary>
+
 Motivation: {motivation}
 
 Method: {method}
