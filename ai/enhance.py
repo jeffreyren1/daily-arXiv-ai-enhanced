@@ -26,7 +26,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    model_name = os.environ.get("MODEL_NAME", 'deepseek-chat')
+    model_name = os.environ.get("MODEL_NAME", 'Qwen/Qwen3-235B-A22B')
     language = os.environ.get("LANGUAGE", 'Chinese')
 
     data = []
