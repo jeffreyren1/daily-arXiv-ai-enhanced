@@ -7,7 +7,6 @@ This tool will daily crawl <https://arxiv.org> and use LLMs to summarize them.
 This repo will daily crawl arXiv papers about **cs.CV, cs.GR and cs.CL**, and use **DeepSeek** to summarize the papers in **Chinese**.
 If you wish to crawl other arXiv categories, use other LLMs or other languages, please follow the bellow instructions.
 
-
 **Instructions:**
 
 1. Fork this repo to your own account
@@ -25,7 +24,6 @@ If you wish to crawl other arXiv categories, use other LLMs or other languages, 
 8. You can manually click **Run workflow** to test if it works well (it may takes about one hour).
 By default, this action will automatically run every day
 You can modify it in `.github/workflows/run.yml`
-1. If you wish to modify the content in `README.md`, do not directly edit README.md. You should edit `template.md`.
 
 ## To-do list
 
