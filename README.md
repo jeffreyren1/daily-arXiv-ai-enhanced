@@ -1,14 +1,17 @@
 # About
-This tool will daily crawl https://arxiv.org and use LLMs to summarize them.
 
-See in: https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/
+This tool will daily crawl <https://arxiv.org> and use LLMs to summarize them.
 
-# How to use
+See in: <https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/>
+
+## How to use
+
 This repo will daily crawl arXiv papers about **cs.CV, cs.GR and cs.CL**, and use **DeepSeek** to summarize the papers in **Chinese**.
 If you wish to crawl other arXiv categories, use other LLMs or other languages, please follow the bellow instructions.
-Otherwise, you can directly use this repo in https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/ . Please star it if you like :)
+Otherwise, you can directly use this repo in <https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/> . Please star it if you like :)
 
 **Instructions:**
+
 1. Fork this repo to your own account
 2. Go to: your-own-repo -> Settings -> Secrets and variables -> Actions
 3. Go to Secrets. Secrets are encrypted and are used for sensitive data
@@ -21,29 +24,18 @@ Otherwise, you can directly use this repo in https://dw-dengwei.github.io/daily-
    4. `EMAIL`: your email for push to github
    5. `NAME`: your name for push to github
 7. Go to your-own-repo -> Actions -> arXiv-daily-ai-enhanced
-8. You can manually click **Run workflow** to test if it works well (it may takes about one hour). 
+8. You can manually click **Run workflow** to test if it works well (it may takes about one hour).
 By default, this action will automatically run every day
 You can modify it in `.github/workflows/run.yml`
 9. If you wish to modify the content in `README.md`, do not directly edit README.md. You should edit `template.md`.
 
-# To-do list
+## To-do list
+
 - [x] Replace markdown with GitHub pages front-end.
 - [ ] Update instructions for fork users about how to use github pages.
 
-# Content
+## Content
+
 [2025-06-13](data/2025-06-13.md)
 
 [2025-06-12](data/2025-06-12.md)
-
-[2025-06-11](data/2025-06-11.md)
-
-[2025-06-10](data/2025-06-10.md)
-
-[2025-06-09](data/2025-06-09.md)
-
-[2025-06-08](data/2025-06-08.md)
-
-[2025-06-07](data/2025-06-07.md)
-
-[2025-06-06](data/2025-06-06.md)
-
