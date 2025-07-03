@@ -60,7 +60,14 @@ def main():
                 "language": language,
                 "content": d['summary']
             })
-            d['AI'] = response.model_dump()
+            d['AI'] = {
+            "tldr": response.get("tldr", "N/A"),
+            "motivation": response.get("motivation", "N/A"),
+            "method": response.get("method", "N/A"),
+            "result": response.get("result", "N/A"),
+            "conclusion": response.get("conclusion", "N/A"),}
+            d['AI'] = json.dumps(d['AI'], ensure_ascii=False)
+
         except langchain_core.exceptions.OutputParserException as e:
             print(f"{d['id']} has an error: {e}", file=sys.stderr)
             d['AI'] = {
