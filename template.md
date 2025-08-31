@@ -33,14 +33,3 @@ You can modify it in `.github/workflows/run.yml`
 
 # Content
 {readme_content}
-
-<<<<<<< HEAD
-# Related tools
-=======
-## Related tools
->>>>>>> parent of da9163b (update)
-- ICML, ICLR, NeurIPS list: https://jeffreyren1.github.io/OpenReview-paper-list/index.html
-
-# Star history
-
-[![Star History Chart](https://api.star-history.com/svg?repos=jeffreyren1/daily-arXiv-ai-enhanced&type=Date)](https://www.star-history.com/#jeffreyren1/daily-arXiv-ai-enhanced&Date)
