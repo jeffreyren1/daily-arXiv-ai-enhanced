@@ -1,7 +1,7 @@
 arxiv:
-  categories:  # 文章类型
+  categories:
     - cs.CV
     - cs.CL
 
 llm:
-  model_name: 'deepseek-chat'  # 使用的LLM模型
+  model_name: "deepseek-chat"
