@@ -34,8 +34,12 @@ You can modify it in `.github/workflows/run.yml`
 # Content
 {readme_content}
 
+<<<<<<< HEAD
 # Related tools
-- ICML, ICLR, NeurIPS list: https://dw-dengwei.github.io/OpenReview-paper-list/index.html
+=======
+## Related tools
+>>>>>>> parent of da9163b (update)
+- ICML, ICLR, NeurIPS list: https://jeffreyren1.github.io/OpenReview-paper-list/index.html
 
 # Star history
 
