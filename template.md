@@ -1,11 +1,9 @@
-# daily-arXiv-ai-enhanced
-
-## About
+# About
 This tool will daily crawl https://arxiv.org and use LLMs to summarize them.
 
 See in: https://jeffreyren1.github.io/daily-arXiv-ai-enhanced/
 
-## How to use
+# How to use
 This repo will daily crawl arXiv papers about **cs.CV, cs.GR and cs.CL**, and use **DeepSeek** to summarize the papers in **Chinese**.
 If you wish to crawl other arXiv categories, use other LLMs or other languages, please follow the bellow instructions.
 Otherwise, you can directly use this repo in https://jeffreyren1.github.io/daily-arXiv-ai-enhanced/ . Please star it if you like :)
@@ -28,17 +26,17 @@ By default, this action will automatically run every day
 You can modify it in `.github/workflows/run.yml`
 9. If you wish to modify the content in `README.md`, do not directly edit README.md. You should edit `template.md`.
 
-## To-do list
+# To-do list
 - [x] Replace markdown with GitHub pages front-end.
 - [ ] Bugfix: In the statistics page, the number of papers for a keyword is not correct.
 - [ ] Update instructions for fork users about how to use github pages.
 
-## Content
+# Content
 {readme_content}
 
-## Related tools
-- ICML, ICLR, NeurIPS list: https://jeffreyren1.github.io/OpenReview-paper-list/index.html
+# Related tools
+- ICML, ICLR, NeurIPS list: https://dw-dengwei.github.io/OpenReview-paper-list/index.html
 
-## Star history
+# Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=jeffreyren1/daily-arXiv-ai-enhanced&type=Date)](https://www.star-history.com/#jeffreyren1/daily-arXiv-ai-enhanced&Date)
