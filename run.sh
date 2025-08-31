@@ -47,7 +47,7 @@ else
     echo "   OPENAI_BASE_URL: $OPENAI_BASE_URL"
 fi
 
-echo ""
+
 echo "=== 开始本地调试流程 / Starting Local Debug Workflow ==="
 
 # 获取当前日期 / Get current date

@@ -263,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function fetchGitHubStats() {
   try {
     const response = await fetch(
-      "https://api.github.com/repos/jeffreyren1/daily-arXiv-ai-enhanced"
+      "https://api.github.com/repos/dw-dengwei/daily-arXiv-ai-enhanced"
     );
     const data = await response.json();
     const starCount = data.stargazers_count;
