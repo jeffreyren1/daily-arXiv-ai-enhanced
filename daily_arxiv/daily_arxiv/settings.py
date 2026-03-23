@@ -19,21 +19,44 @@ NEWSPIDER_MODULE = "daily_arxiv.spiders"
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
-# Configure maximum concurrent requests performed by Scrapy (default: 16)
-# CONCURRENT_REQUESTS = 32
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 3
 
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-RETRY_TIMES = 3
+RETRY_DELAY = 30  # 首次重试等待 30 秒
+RETRY_BACKOFF_FACTOR = 2  # 后续重试等待时间翻倍（30s → 60s → 120s）
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+RETRY_TIMES = 2
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
+
+
+# 新增：单篇请求延迟时间（秒）
+SINGLE_REQUEST_DELAY = 2  # 单篇请求之间的间隔，可根据需要调整
+
+# 启用下载中间件
+DOWNLOADER_MIDDLEWARES = {
+    "daily_arxiv.middlewares.RequestDelayMiddleware": 543,  # 启用自定义延迟中间件
+}
+
+# 修改：关闭自动节流（使用自定义延迟）
+AUTOTHROTTLE_ENABLED = False
+
+# 修改：降低并发数，避免限流
+
+
+# 保留原有下载延迟（针对API请求）
+DOWNLOAD_DELAY = 10
+
+
 # The download delay setting will honor only one of:
-# CONCURRENT_REQUESTS_PER_DOMAIN = 16
-# CONCURRENT_REQUESTS_PER_IP = 16
+CONCURRENT_REQUESTS_PER_DOMAIN = 1
+CONCURRENT_REQUESTS_PER_IP = 1
 
 # Disable cookies (enabled by default)
 # COOKIES_ENABLED = False
@@ -85,7 +108,7 @@ ITEM_PIPELINES = {
 # each remote server
 # AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 # Enable showing throttling stats for every response received:
-# AUTOTHROTTLE_DEBUG = False
+AUTOTHROTTLE_DEBUG = False  # 关闭自动节流调试日志（过于冗长）
 
 # Enable and configure HTTP caching (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html#httpcache-middleware-settings
