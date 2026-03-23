@@ -1,79 +1,116 @@
 import scrapy
 import os
-import urllib.parse  # 用于URL编码关键词
+import urllib.parse
 import re
+import json
 
 class ArxivSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 1. 从环境变量获取配置：关键词（必填）、分类（可选）、每页数量
+        # 1. 从环境变量获取配置
         self.keywords = os.environ.get("KEYWORDS", "ISAC,vital signs").split(",")
-        self.keywords = [kw.strip() for kw in self.keywords if kw.strip()]  # 去空值
+        self.keywords = [kw.strip() for kw in self.keywords if kw.strip()]
         self.target_categories = os.environ.get("CATEGORIES", "").split(",")
         self.target_categories = set([cat.strip() for cat in self.target_categories if cat.strip()])
-        self.per_page = int(os.environ.get("PER_PAGE", 50))  # 每页爬取数量
+        self.per_page = int(os.environ.get("PER_PAGE", 50))
+        self.start = 0  # 分页起始位置
         
-        # 2. 构造检索URL（支持多关键词+分类组合）
-        self.start_urls = [self._build_search_url()]
+        # 2. 构造官方API的URL
+        self.start_urls = [self._build_api_url()]
 
-    name = "arxiv"  # 爬虫名称，保持不变
-    allowed_domains = ["arxiv.org"]  # 允许爬取的域名
+    name = "arxiv"
+    allowed_domains = ["export.arxiv.org"]  # API域名，不是arxiv.org
 
-    def _build_search_url(self):
-        """构造arxiv检索URL，支持关键词+分类筛选"""
-        # 关键词拼接（OR逻辑，匹配标题/摘要/作者）
-        keyword_str = " OR ".join(self.keywords)
-        encoded_keywords = urllib.parse.quote(keyword_str)
+    def _build_api_url(self):
+        """构造arxiv官方API URL（https://export.arxiv.org/api/query）"""
+        # 拼接关键词查询（标题/摘要中包含任意关键词）
+        keyword_queries = [f"abs:{kw}" for kw in self.keywords]  # abs: 匹配摘要，ti: 匹配标题
+        keyword_str = "+OR+".join(keyword_queries)
         
-        # 分类筛选（可选）
-        cat_filter = ""
-        if self.target_categories:
-            cat_str = " OR ".join(self.target_categories)
-            encoded_cat = urllib.parse.quote(cat_str)
-            cat_filter = f"&categories={encoded_cat}"
+        # 拼接分类查询
+        cat_queries = [f"cat:{cat}" for cat in self.target_categories] if self.target_categories else []
+        cat_str = "+OR+".join(cat_queries)
         
-        # 构造最终URL：按提交时间排序，最新优先
-        base_url = "https://arxiv.org/search/?query={}&searchtype=all{}&size={}&order=-submitted_date"
-        return base_url.format(encoded_keywords, cat_filter, self.per_page)
+        # 组合查询条件（关键词 AND 分类）
+        if keyword_str and cat_str:
+            search_query = f"({keyword_str})+AND+({cat_str})"
+        elif keyword_str:
+            search_query = keyword_str
+        elif cat_str:
+            search_query = cat_str
+        else:
+            search_query = "abs:ISAC"  # 默认查询
+        
+        # 构造API URL
+        params = {
+            "search_query": search_query,
+            "start": self.start,
+            "max_results": self.per_page,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+            "format": "json"  # 返回JSON格式，易解析
+        }
+        base_url = "https://export.arxiv.org/api/query?"
+        return base_url + urllib.parse.urlencode(params)
 
     def parse(self, response):
-        """解析检索结果页，提取论文信息"""
-        # 遍历每篇论文的条目
-        for paper_item in response.css("li.arxiv-result"):
-            # 提取论文ID（核心）
-            arxiv_id = paper_item.css("p.title a::attr(href)").re_first(r"/abs/(\d+\.\d+|[\w-]+)")
-            if not arxiv_id:
-                self.logger.warning("Failed to extract arxiv ID")
-                continue
-            
-            # 提取论文分类
-            category_text = paper_item.css("span.subject::text").get()
-            paper_categories = set()
-            if category_text:
-                # 解析分类（格式："Computer Vision (cs.CV), Signal Processing (eess.SP)"）
-                paper_categories = set(re.findall(r'\(([^)]+)\)', category_text))
-            
-            # 过滤：如果指定了目标分类，仅保留交集论文
-            if self.target_categories and not paper_categories.intersection(self.target_categories):
-                self.logger.debug(f"Skipped paper {arxiv_id} (categories not match)")
-                continue
-            
-            # 可选：提取更多信息（标题、摘要、作者）
-            title = paper_item.css("p.title::text").get().strip() if paper_item.css("p.title::text").get() else ""
-            abstract = paper_item.css("p.abstract::text").get().strip() if paper_item.css("p.abstract::text").get() else ""
-            authors = [a.strip() for a in paper_item.css("p.authors a::text").getall()]
-            
-            # 输出最终数据
-            yield {
-                "id": arxiv_id,
-                "title": title,
-                "abstract": abstract,
-                "authors": authors,
-                "categories": list(paper_categories),
-                "url": f"https://arxiv.org/abs/{arxiv_id}"
-            }
+        """解析官方API的JSON响应"""
+        try:
+            # API返回的是XML，转JSON更易处理（或直接解析XML）
+            # 注：arxiv API默认返回XML，这里改用JSON格式（需确认），若报错则解析XML
+            data = json.loads(response.text)
+        except:
+            # 解析XML格式（API默认返回）
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.text)
+            ns = {"arxiv": "http://www.w3.org/2005/Atom"}
+            entries = root.findall("arxiv:entry", ns)
+            data = {"entries": entries}
         
-        # 可选：处理分页（爬取下一页）
-        next_page = response.css("nav.pagination a.next::attr(href)").get()
-        if next_page:
-            yield response.follow(next_page, self.parse)
+        # 解析论文数据
+        if "entries" in data and data["entries"]:
+            for entry in data["entries"]:
+                # 解析XML格式的entry
+                if isinstance(entry, ET.Element):
+                    ns = {"arxiv": "http://www.w3.org/2005/Atom"}
+                    # 提取论文ID
+                    id_text = entry.find("arxiv:id", ns).text
+                    arxiv_id = id_text.split("/abs/")[-1] if id_text else ""
+                    # 提取标题
+                    title = entry.find("arxiv:title", ns).text.strip() if entry.find("arxiv:title", ns) is not None else ""
+                    # 提取摘要
+                    abstract = entry.find("arxiv:summary", ns).text.strip() if entry.find("arxiv:summary", ns) is not None else ""
+                    # 提取作者
+                    authors = [author.find("arxiv:name", ns).text for author in entry.findall("arxiv:author", ns)]
+                    # 提取分类
+                    categories = [cat.text for cat in entry.findall("arxiv:category", ns)]
+                    paper_categories = set(categories)
+                else:
+                    # 解析JSON格式（备用）
+                    arxiv_id = entry.get("id", "").split("/abs/")[-1]
+                    title = entry.get("title", "").strip()
+                    abstract = entry.get("summary", "").strip()
+                    authors = [a.get("name", "") for a in entry.get("authors", [])]
+                    paper_categories = set(entry.get("categories", []))
+                
+                # 分类过滤
+                if self.target_categories and not paper_categories.intersection(self.target_categories):
+                    self.logger.debug(f"Skipped paper {arxiv_id} (categories not match)")
+                    continue
+                
+                # 输出数据
+                yield {
+                    "id": arxiv_id,
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": authors,
+                    "categories": list(paper_categories),
+                    "url": f"https://arxiv.org/abs/{arxiv_id}"
+                }
+            
+            # 处理分页
+            self.start += self.per_page
+            next_url = self._build_api_url()
+            yield scrapy.Request(next_url, callback=self.parse)
+        else:
+            self.logger.info("No more papers to crawl")
