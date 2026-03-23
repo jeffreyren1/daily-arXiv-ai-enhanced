@@ -10,32 +10,40 @@ class ArxivSpider(scrapy.Spider):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 1. 配置项 - 固定关键词和数量
+        # 1. 从环境变量读取配置（精准匹配用）
+        # 关键词（摘要中匹配，多个关键词用OR连接）
         self.keywords = os.environ.get("KEYWORDS", "ISAC,vital signs").split(",")
         self.keywords = [kw.strip() for kw in self.keywords if kw.strip()]
+        # 兜底：默认关键词
+        if not self.keywords:
+            self.keywords = ["ISAC", "vital signs"]
+
+        # 目标分类（必须匹配其中之一）
         self.target_categories = os.environ.get("CATEGORIES", "").split(",")
         self.target_categories = set([cat.strip() for cat in self.target_categories if cat.strip()])
-        self.max_results = 50  # 只获取前50篇
-        self.collected_count = 0  # 已收集的论文数量
-        self.start = 0  # 分页起始位置（仅用于首次请求）
 
-        # 2. 构造首次请求URL
+        # 2. 核心配置：只取前50篇，按日期降序
+        self.max_results = 50  # 最终只取50篇
+        self.collected_count = 0  # 已收集的符合条件的论文数
+        self.start = 0  # 分页起始位置（仅首次请求）
+
+        # 3. 构造精准搜索的URL
         self.start_urls = [self._build_api_url()]
 
     def _build_api_url(self):
-        """构造API请求URL，确保按日期降序排序，只返回指定数量"""
-        # 关键词处理：abs:关键词 表示在摘要中匹配
+        """构造精准搜索URL：关键词+按日期降序+仅返回指定数量"""
+        # 关键词处理：abs:关键词 → 仅在摘要中匹配，多个关键词用OR连接
         keyword_queries = []
         for kw in self.keywords:
             clean_kw = kw.replace(" ", "+")
             keyword_queries.append(f"abs:{clean_kw}")
         keyword_str = "+OR+".join(keyword_queries)
 
-        # 固定参数：按提交日期降序、只返回max_results篇
+        # 核心参数：精准搜索+日期降序+只取max_results篇
         params = {
             "search_query": keyword_str,
             "start": self.start,
-            "max_results": self.max_results,
+            "max_results": self.max_results,  # 直接请求50篇
             "sortBy": "submittedDate",  # 按提交日期排序
             "sortOrder": "descending",  # 从近到远
         }
@@ -43,106 +51,108 @@ class ArxivSpider(scrapy.Spider):
         return "https://export.arxiv.org/api/query?" + "&".join(url_parts)
 
     def parse(self, response):
-        """解析XML响应，只提取前50篇符合条件的论文"""
-        # 处理XML命名空间
+        """解析API响应：只提取符合关键词+分类的前50篇论文"""
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         try:
             root = ET.fromstring(response.text)
         except ET.ParseError:
-            self.logger.error("Failed to parse XML response")
+            self.logger.error("XML解析失败，停止爬取")
             return
 
-        # 提取论文条目
+        # 提取论文条目（API已按日期降序返回）
         entries = root.findall("atom:entry", ns)
         if not entries:
-            self.logger.info("No papers found for current query")
+            self.logger.info("未找到符合条件的论文")
             return
 
-        # 遍历解析每篇论文，直到收集满50篇
+        # 遍历解析，只取前50篇符合条件的
         for entry in entries:
-            # 达到50篇上限则停止
+            # 达到50篇上限，直接停止
             if self.collected_count >= self.max_results:
-                self.logger.info(f"已收集满{self.max_results}篇论文，停止解析")
+                self.logger.info(f"已收集满{self.max_results}篇符合条件的论文，停止解析")
                 return
 
-            # 1. 论文ID
+            # 1. 提取基础信息
             id_elem = entry.find("atom:id", ns)
             arxiv_id = id_elem.text.split("/abs/")[-1].strip() if id_elem is not None else ""
             if not arxiv_id:
                 continue
 
-            # 2. 标题
             title_elem = entry.find("atom:title", ns)
             title = title_elem.text.strip().replace("\n", " ") if title_elem is not None else ""
 
-            # 3. 摘要
             summary_elem = entry.find("atom:summary", ns)
             abstract = summary_elem.text.strip().replace("\n", " ") if summary_elem is not None else ""
 
-            # 4. 作者
-            authors = []
-            for auth_elem in entry.findall("atom:author/atom:name", ns):
-                authors.append(auth_elem.text.strip())
+            authors = [auth_elem.text.strip() for auth_elem in entry.findall("atom:author/atom:name", ns)]
 
-            # 5. 分类
-            categories = []
-            for cat_elem in entry.findall("atom:category", ns):
-                cat = cat_elem.get("term")
-                if cat:
-                    categories.append(cat)
+            # 提取分类（用于过滤）
+            categories = [
+                cat_elem.get("term") for cat_elem in entry.findall("atom:category", ns) if cat_elem.get("term")
+            ]
             paper_categories = set(categories)
 
-            # 过滤分类（如果设置了目标分类）
+            # 2. 精准过滤：必须匹配指定分类（核心）
             if self.target_categories and not paper_categories.intersection(self.target_categories):
-                self.logger.debug(f"Skipped {arxiv_id} (category not match: {paper_categories})")
+                self.logger.debug(f"跳过 {arxiv_id}（分类不匹配：{paper_categories}）")
                 continue
 
-            # 单篇请求：构造arxiv详情页的请求（模拟单篇请求）
+            # 3. 构造单篇请求（按日期排序的第N篇）
+            self.collected_count += 1
             detail_url = f"https://arxiv.org/abs/{arxiv_id}"
+            self.logger.info(f"收集第 {self.collected_count}/{self.max_results} 篇论文（ID：{arxiv_id}）")
+
             yield scrapy.Request(
                 url=detail_url,
                 callback=self.parse_single_paper,
                 meta={
-                    "paper_basic": {
+                    "paper_info": {
                         "id": arxiv_id,
                         "title": title,
                         "abstract": abstract,
                         "authors": authors,
                         "categories": list(paper_categories),
                         "url": detail_url,
+                        "order": self.collected_count,  # 标记是按日期排序的第N篇
                     }
                 },
-                # 每个单篇请求添加延迟（关键：避免限流）
                 dont_filter=True,
             )
 
-            self.collected_count += 1
-            self.logger.info(f"已收集 {self.collected_count}/{self.max_results} 篇论文")
-
-        self.logger.info(f"本次解析完成，共收集 {self.collected_count} 篇有效论文")
+        # 若当前页无足够数据，停止（避免分页）
+        if self.collected_count < self.max_results:
+            self.logger.info(f"仅找到 {self.collected_count} 篇符合条件的论文（目标50篇），已无更多数据")
 
     def parse_single_paper(self, response):
-        """解析单篇论文的详情页（单篇请求的回调）"""
-        basic_info = response.meta.get("paper_basic", {})
+        """解析单篇论文详情页（添加间隔避免限流）"""
+        paper_info = response.meta.get("paper_info", {})
 
-        # 这里可以解析详情页的更多信息（如全文链接、引用等）
-        # 示例：提取页面标题确认请求成功
+        # 解析详情页额外信息
         page_title = response.xpath('//title/text()').get() or ""
 
-        # 合并数据并输出
+        # 输出最终结果（包含排序序号）
         yield {
-            **basic_info,
+            "order": paper_info.get("order"),  # 按日期从近到远的序号（1-50）
+            "id": paper_info.get("id"),
+            "title": paper_info.get("title"),
+            "abstract": paper_info.get("abstract"),
+            "authors": paper_info.get("authors"),
+            "categories": paper_info.get("categories"),
+            "url": paper_info.get("url"),
             "detail_page_title": page_title.strip(),
             "detail_page_status": "success" if response.status == 200 else "failed",
         }
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
-        """注册信号，确保爬虫停止在收集满50篇时"""
+        """注册信号，确保爬虫正常关闭"""
         spider = super(ArxivSpider, cls).from_crawler(crawler, *args, **kwargs)
         crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
         return spider
 
     def spider_closed(self, spider):
-        """爬虫关闭时的日志"""
-        self.logger.info(f"爬虫结束，最终收集到 {self.collected_count} 篇论文（目标：{self.max_results}篇）")
+        """爬虫关闭日志"""
+        self.logger.info(
+            f"爬虫结束 | 最终收集 {self.collected_count} 篇符合条件的论文（目标50篇）\n"
+            f"关键词：{','.join(self.keywords)} | 分类：{','.join(self.target_categories)}"
+        )
