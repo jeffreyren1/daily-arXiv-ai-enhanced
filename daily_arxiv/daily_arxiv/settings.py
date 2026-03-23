@@ -27,9 +27,6 @@ ROBOTSTXT_OBEY = False
 # See also autothrottle settings and docs
 DOWNLOAD_DELAY = 3
 
-# 1. 必须关闭robots.txt校验（核心！）
-ROBOTSTXT_OBEY = False
-
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 RETRY_TIMES = 3

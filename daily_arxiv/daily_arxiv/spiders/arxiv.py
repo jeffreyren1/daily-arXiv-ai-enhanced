@@ -1,6 +1,5 @@
 import scrapy
 import os
-import urllib.parse
 import xml.etree.ElementTree as ET
 
 class ArxivSpider(scrapy.Spider):
@@ -14,59 +13,56 @@ class ArxivSpider(scrapy.Spider):
         self.per_page = int(os.environ.get("PER_PAGE", 50))
         self.start = 0  # 分页起始位置
         
-        # 2. 构造官方API的URL（XML格式）
+        # 2. 构造官方API的URL
         self.start_urls = [self._build_api_url()]
 
     name = "arxiv"
-    allowed_domains = ["export.arxiv.org"]  # API专属域名
+    allowed_domains = ["export.arxiv.org"]
 
     def _build_api_url(self):
-        """构造arxiv官方API URL（XML格式，稳定）"""
-        # 1. 拼接关键词（abs:摘要，ti:标题，all:全文）
-        keyword_queries = [f"abs:{urllib.parse.quote(kw)}" for kw in self.keywords]
-        keyword_str = "+OR+".join(keyword_queries)
+        """简化API查询，避免嵌套逻辑和编码问题"""
+        # 关键词处理：替换空格为+，避免编码错误
+        keyword_queries = []
+        for kw in self.keywords:
+            clean_kw = kw.replace(" ", "+")
+            keyword_queries.append(f"abs:{clean_kw}")  # 仅匹配摘要，精准度高
+        keyword_str = "+OR+".join(keyword_queries) if keyword_queries else "abs:ISAC"
         
-        # 2. 拼接分类
-        cat_queries = [f"cat:{cat}" for cat in self.target_categories] if self.target_categories else []
-        cat_str = "+OR+".join(cat_queries)
-        
-        # 3. 组合查询（关键词 AND 分类）
-        if keyword_str and cat_str:
-            search_query = f"({keyword_str})+AND+({cat_str})"
-        elif keyword_str:
-            search_query = keyword_str
-        elif cat_str:
-            search_query = cat_str
-        else:
-            search_query = "abs:ISAC"
-        
-        # 4. 构造最终URL（XML格式）
+        # 构造参数（手动拼接，避免urllib二次编码）
         params = {
-            "search_query": search_query,
+            "search_query": keyword_str,
             "start": self.start,
             "max_results": self.per_page,
             "sortBy": "submittedDate",
             "sortOrder": "descending"
         }
-        return "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
+        url_parts = [f"{k}={v}" for k, v in params.items()]
+        return "https://export.arxiv.org/api/query?" + "&".join(url_parts)
 
     def parse(self, response):
-        """解析XML格式的API响应"""
-        # 解析XML根节点（处理命名空间）
+        """解析XML响应，兼容arXiv API格式"""
+        # 处理XML命名空间
         ns = {"atom": "http://www.w3.org/2005/Atom"}
-        root = ET.fromstring(response.text)
-        entries = root.findall("atom:entry", ns)
-        
-        if not entries:
-            self.logger.info("No more papers found")
+        try:
+            root = ET.fromstring(response.text)
+        except ET.ParseError:
+            self.logger.error("Failed to parse XML response")
             return
         
-        # 遍历每篇论文
+        # 提取论文条目
+        entries = root.findall("atom:entry", ns)
+        if not entries:
+            self.logger.info("No papers found for current query")
+            return
+        
+        # 遍历解析每篇论文
+        item_count = 0
         for entry in entries:
-            # 提取核心字段
             # 1. 论文ID
             id_elem = entry.find("atom:id", ns)
-            arxiv_id = id_elem.text.split("/abs/")[-1] if id_elem is not None else ""
+            arxiv_id = id_elem.text.split("/abs/")[-1].strip() if id_elem is not None else ""
+            if not arxiv_id:
+                continue
             
             # 2. 标题
             title_elem = entry.find("atom:title", ns)
@@ -89,9 +85,9 @@ class ArxivSpider(scrapy.Spider):
                     categories.append(cat)
             paper_categories = set(categories)
             
-            # 分类过滤
+            # 本地过滤分类（核心）
             if self.target_categories and not paper_categories.intersection(self.target_categories):
-                self.logger.debug(f"Skipped {arxiv_id} (category not match)")
+                self.logger.debug(f"Skipped {arxiv_id} (category not match: {paper_categories})")
                 continue
             
             # 输出数据
@@ -103,9 +99,14 @@ class ArxivSpider(scrapy.Spider):
                 "categories": list(paper_categories),
                 "url": f"https://arxiv.org/abs/{arxiv_id}"
             }
+            item_count += 1
         
-        # 分页爬取（避免无限循环，限制最大页数）
+        self.logger.info(f"Scraped {item_count} valid papers in this page")
+        
+        # 分页（限制最大页数，避免无限循环）
         self.start += self.per_page
-        if self.start < 100:  # 最多爬取500篇，可调整
+        if self.start < 500 and item_count > 0:  # 有数据才继续分页
             next_url = self._build_api_url()
             yield scrapy.Request(next_url, callback=self.parse)
+        else:
+            self.logger.info("Crawling finished (no more data or reach max pages)")
