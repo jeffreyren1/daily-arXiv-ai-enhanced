@@ -8,6 +8,13 @@ class ArxivSpider(scrapy.Spider):
     name = "arxiv"
     allowed_domains = ["export.arxiv.org"]
 
+    custom_settings = {
+        'DEFAULT_REQUEST_HEADERS': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/atom+xml,application/xml,text/xml',
+        }
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # 1. 从环境变量读取配置（精准匹配用）
