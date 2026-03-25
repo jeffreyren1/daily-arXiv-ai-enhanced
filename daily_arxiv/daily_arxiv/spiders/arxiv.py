@@ -22,8 +22,8 @@ class ArxivSpider(scrapy.Spider):
         self.target_categories = os.environ.get("CATEGORIES", "").split(",")
         self.target_categories = set([cat.strip() for cat in self.target_categories if cat.strip()])
 
-        # 2. 核心配置：只取前50篇，按日期降序
-        self.max_results = 50  # 最终只取50篇
+        # 2. 核心配置：只取前100篇，按日期降序
+        self.max_results = 100  # 最终只取100篇
         self.collected_count = 0  # 已收集的符合条件的论文数
         self.start = 0  # 分页起始位置（仅首次请求）
 
@@ -43,7 +43,7 @@ class ArxivSpider(scrapy.Spider):
         params = {
             "search_query": keyword_str,
             "start": self.start,
-            "max_results": self.max_results,  # 直接请求50篇
+            "max_results": self.max_results,  # 直接请求100篇
             "sortBy": "submittedDate",  # 按提交日期排序
             "sortOrder": "descending",  # 从近到远
         }
@@ -51,7 +51,7 @@ class ArxivSpider(scrapy.Spider):
         return "https://export.arxiv.org/api/query?" + "&".join(url_parts)
 
     def parse(self, response):
-        """解析API响应：只提取符合关键词+分类的前50篇论文"""
+        """解析API响应：只提取符合关键词+分类的前100篇论文"""
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         try:
             root = ET.fromstring(response.text)
@@ -65,9 +65,9 @@ class ArxivSpider(scrapy.Spider):
             self.logger.info("未找到符合条件的论文")
             return
 
-        # 遍历解析，只取前50篇符合条件的
+        # 遍历解析，只取前100篇符合条件的
         for entry in entries:
-            # 达到50篇上限，直接停止
+            # 达到100篇上限，直接停止
             if self.collected_count >= self.max_results:
                 self.logger.info(f"已收集满{self.max_results}篇符合条件的论文，停止解析")
                 return
@@ -121,7 +121,7 @@ class ArxivSpider(scrapy.Spider):
 
         # 若当前页无足够数据，停止（避免分页）
         if self.collected_count < self.max_results:
-            self.logger.info(f"仅找到 {self.collected_count} 篇符合条件的论文（目标50篇），已无更多数据")
+            self.logger.info(f"仅找到 {self.collected_count} 篇符合条件的论文（目标100篇），已无更多数据")
 
     def parse_single_paper(self, response):
         """解析单篇论文详情页（添加间隔避免限流）"""
@@ -132,7 +132,7 @@ class ArxivSpider(scrapy.Spider):
 
         # 输出最终结果（包含排序序号）
         yield {
-            "order": paper_info.get("order"),  # 按日期从近到远的序号（1-50）
+            "order": paper_info.get("order"),  # 按日期从近到远的序号（1-100）
             "id": paper_info.get("id"),
             "title": paper_info.get("title"),
             "abstract": paper_info.get("abstract"),
@@ -153,6 +153,6 @@ class ArxivSpider(scrapy.Spider):
     def spider_closed(self, spider):
         """爬虫关闭日志"""
         self.logger.info(
-            f"爬虫结束 | 最终收集 {self.collected_count} 篇符合条件的论文（目标50篇）\n"
+            f"爬虫结束 | 最终收集 {self.collected_count} 篇符合条件的论文（目标100篇）\n"
             f"关键词：{','.join(self.keywords)} | 分类：{','.join(self.target_categories)}"
         )
